@@ -1,0 +1,22 @@
+{
+  "name": "bayes",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "npm run build && npm run run",
+    "build": "npx tsc --project tsconfig.json",
+    "run": "node dist/index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "mathjs": "^14.0.0",
+    "ml-naivebayes": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

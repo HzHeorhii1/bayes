@@ -128,3 +128,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+nursery.c45-names
+nursery.data
+nursery.names
+wine.data
+wine.names
