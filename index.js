@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises';
 
 const NBCForNursery = {
     alpha: 1,
-    labels: [], // unique labels
+    unLabels: [], // unique class unLabels (типа + - yess noo...)
     totalCount: 0,
-    labelCounts: {}, // Y count - class counter
+    yCounts: {}, // Y count - class counter
     featureCounts: [],
-    classFeatureCounts: {},
+    classFeatureCounts: {}, // X1, X2, X3...
     logConditionalProbs: {},
     logPriorProbs: {},
     logConditionalProbsWithoutLaplace: {},
@@ -16,18 +16,18 @@ const NBCForNursery = {
     },
 
     //uczenie
-    fit(X, y) { // X - observation matrix, y - labels
-        this.labels = [...new Set(y)];
+    fit(X, y) { // X - observation matrix, y - unLabels
+        this.unLabels = [...new Set(y)];
         this.totalCount = y.length;
-        this.labelCounts = {};
+        this.yCounts = {};
         this.featureCounts = Array(X[0].length).fill(null).map(() => ({}));
         this.classFeatureCounts = {};
         this.logConditionalProbs = {};
         this.logConditionalProbsWithoutLaplace = {};
 
 
-        for (const label of this.labels) {
-            this.labelCounts[label] = 0;
+        for (const label of this.unLabels) {
+            this.yCounts[label] = 0;
             this.classFeatureCounts[label] = Array(X[0].length).fill(null).map(() => ({}));
         }
 
@@ -35,7 +35,7 @@ const NBCForNursery = {
         for (let i = 0; i < X.length; i++) {
             const xi = X[i];
             const yi = y[i];
-            this.labelCounts[yi]++;
+            this.yCounts[yi]++;
             for (let index = 0; index < xi.length; index++) {
                 const value = xi[index];
                 this.classFeatureCounts[yi][index][value] = (this.classFeatureCounts[yi][index][value] || 0) + 1;
@@ -45,20 +45,20 @@ const NBCForNursery = {
 
         // calculate log conditional probabilities
         // P(x|c) = (classFeatureCounts(x, c) + alpha) / (classFeatureCounts(c) + alpha * |X|)
-        for (const label of this.labels) {
+        for (const label of this.unLabels) {
              this.logConditionalProbs[label] = Array(X[0].length).fill(null).map(() => ({}));
              this.logConditionalProbsWithoutLaplace[label] = Array(X[0].length).fill(null).map(() => ({}));
             for (let featureIdx = 0; featureIdx < this.classFeatureCounts[label].length; featureIdx++) {
                 const featureCount = this.classFeatureCounts[label][featureIdx];
-                const totalLabelCount = this.labelCounts[label];
+                const totalLabelCount = this.yCounts[label];
                 const uniqueFeatureValues = Object.keys(this.featureCounts[featureIdx]).length;
                  for (const [value, count] of Object.entries(featureCount)) {
-                    let numerator = count + this.alpha;
-                    let denominator = totalLabelCount + uniqueFeatureValues * this.alpha;
-                    this.logConditionalProbs[label][featureIdx][value] = Math.log(numerator / denominator);
-                     numerator = count;
-                     denominator = totalLabelCount
-                     this.logConditionalProbsWithoutLaplace[label][featureIdx][value] =  denominator > 0 ? Math.log(numerator / denominator): Number.NEGATIVE_INFINITY;
+                    let znamenatel = count + this.alpha;
+                    let chislitel = totalLabelCount + uniqueFeatureValues * this.alpha;
+                    this.logConditionalProbs[label][featureIdx][value] = Math.log(znamenatel / chislitel);
+                     znamenatel = count;
+                     chislitel = totalLabelCount
+                     this.logConditionalProbsWithoutLaplace[label][featureIdx][value] =  chislitel > 0 ? Math.log(znamenatel / chislitel): Number.NEGATIVE_INFINITY;
                 }
              }
         }
@@ -66,20 +66,20 @@ const NBCForNursery = {
         // calculate log prior probabilities
         // P(c) = count(c) / count(all)
         this.logPriorProbs = {};
-        for (const label of this.labels) {
-            this.logPriorProbs[label] = Math.log(this.labelCounts[label] / this.totalCount);
+        for (const label of this.unLabels) {
+            this.logPriorProbs[label] = Math.log(this.yCounts[label] / this.totalCount);
         }
     },
 
     predictProba(X, useLaplace = true) {
        return X.map((xi) => {
-            const logProbs = this.labels.map((label) => {
+            const logProbs = this.unLabels.map((label) => {
                 let logProb = this.logPriorProbs[label];
                 for (let index = 0; index < xi.length; index++) {
                     const value = xi[index];
                     if (useLaplace){
                        const isObjectWhereWeStoreLogs = this.logConditionalProbs[label][index][value] !== undefined;
-                       logProb += (isObjectWhereWeStoreLogs) ? this.logConditionalProbs[label][index][value] : Math.log(this.alpha / (this.labelCounts[label] + Object.keys(this.featureCounts[index]).length* this.alpha));
+                       logProb += (isObjectWhereWeStoreLogs) ? this.logConditionalProbs[label][index][value] : Math.log(this.alpha / (this.yCounts[label] + Object.keys(this.featureCounts[index]).length* this.alpha));
                    }
                    else {
                     const isObjectWhereWeStoreLogsWithoutLaplaceNotUndefined = this.logConditionalProbsWithoutLaplace[label][index][value] !== undefined;
@@ -96,16 +96,16 @@ const NBCForNursery = {
         });
     },
 
-    // P(value | classLabel) = (classFeatureCounts(value) + alpha) / (labelCounts + alpha * |X|)
+    // P(value | classLabel) = (classFeatureCounts(value) + alpha) / (yCounts + alpha * |X|)
     calculateConditionalProbability(attributeIndex, value, classLabel, useLaplace = true) {
         const featureCounts = this.classFeatureCounts[classLabel][attributeIndex];
-        const labelCount = this.labelCounts[classLabel];
+        const labelCount = this.yCounts[classLabel];
         const uniqueFeatureValues = Object.keys(this.featureCounts[attributeIndex]).length;
 
-        const numerator = (featureCounts[value] || 0) + (useLaplace ? this.alpha : 0);
-        const denominator = labelCount + (useLaplace ? uniqueFeatureValues * this.alpha : 0);
+        const znamenatel = (featureCounts[value] || 0) + (useLaplace ? this.alpha : 0);
+        const chislitel = labelCount + (useLaplace ? uniqueFeatureValues * this.alpha : 0);
 
-        return denominator > 0 ? numerator / denominator : 0;
+        return chislitel > 0 ? znamenatel / chislitel : 0;
     },
 
     //klasyfikowanie(it searches a class with the highest probability)
@@ -113,7 +113,7 @@ const NBCForNursery = {
       const probas = this.predictProba(X, useLaplace);
         return probas.map((probs) => {
             const maxProbIndex = probs.indexOf(Math.max(...probs));
-            return this.labels[maxProbIndex];
+            return this.unLabels[maxProbIndex];
         });
     }
 };
@@ -144,7 +144,7 @@ const y = encodedData.map(row => row[row.length - 1]);
 
 
 // Experiment with different number of bins for each feature (original + duplicated) 
-const numBinsOptions = [3, 5, 7];
+const numBinsOptions = [3, 5, 7, 50, 150];
 const originalFeatureCount = X[0].length;
 
 // Function to duplicate features by multiplying them by 2, 3, 4, etc.
@@ -197,8 +197,6 @@ for (const numBins of numBinsOptions) {
 
 console.table(laplaceResults);
 
-
-console.log('---------------------------------');
 console.log("Without laplace:")
 const noLaFlameResults = [];
 
@@ -262,7 +260,7 @@ for (const cls of decisionClasses) {
 
 const priorProbabilities = {};
 for (const cls of decisionClasses) {
-    priorProbabilities[cls] = nbcTest.labelCounts[encodedClasses[cls]] / nbcTest.totalCount;
+    priorProbabilities[cls] = nbcTest.yCounts[encodedClasses[cls]] / nbcTest.totalCount;
 }
 
 const probWithoutLaplace = {};

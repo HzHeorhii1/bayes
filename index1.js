@@ -3,10 +3,10 @@ import * as tf from '@tensorflow/tfjs-node';
 
 const NBCDiscrete = {
     alpha: 1,
-    labels: [],
-    labelCounts: {},
+    unLabels: [], // unique class unLabels (типа + - yess noo...)
+    yCounts: {},  // Y count - class counter
     featureCounts: [],
-    classFeatureCounts: {},
+    classFeatureCounts: {}, // X1, X2, X3...
     logPriorProbs: {},
     logConditionalProbs: {},
 
@@ -14,22 +14,24 @@ const NBCDiscrete = {
         this.alpha = value;
     },
 
-    fit(X, y) {
-        this.labels = [...new Set(y)];
+    //uczenie
+    fit(X, y) { // X - observation matrix, y - unLabels
+        this.unLabels = [...new Set(y)];
         const totalSamples = y.length;
-        this.labelCounts = {};
+        this.yCounts = {};
         this.featureCounts = Array(X[0].length).fill(null).map(() => ({}));
         this.classFeatureCounts = {};
 
-        for (const label of this.labels) {
-            this.labelCounts[label] = 0;
+        for (const label of this.unLabels) {
+            this.yCounts[label] = 0;
             this.classFeatureCounts[label] = Array(X[0].length).fill(null).map(() => ({}));
         }
 
+        // frequency of each class and each feature value
         for (let i = 0; i < X.length; i++) {
             const xi = X[i];
             const yi = y[i];
-            this.labelCounts[yi]++;
+            this.yCounts[yi]++;
             for (let index = 0; index < xi.length; index++) {
                 const value = xi[index];
                 this.classFeatureCounts[yi][index][value] = (this.classFeatureCounts[yi][index][value] || 0) + 1;
@@ -38,22 +40,24 @@ const NBCDiscrete = {
         }
 
         this.logPriorProbs = {};
-        for (const label of this.labels) {
-            this.logPriorProbs[label] = Math.log(this.labelCounts[label] / totalSamples);
+        // P(c)
+        for (const label of this.unLabels) {
+            this.logPriorProbs[label] = Math.log(this.yCounts[label] / totalSamples);
         }
 
         this.logConditionalProbs = {};
-        for (const label of this.labels) {
+        // P(x|c)
+        for (const label of this.unLabels) {
             this.logConditionalProbs[label] = Array(X[0].length).fill(null).map(() => ({}));
             for (let featureIdx = 0; featureIdx < this.classFeatureCounts[label].length; featureIdx++) {
                 const featureCount = this.classFeatureCounts[label][featureIdx];
-                const totalLabelCount = this.labelCounts[label];
+                const totalLabelCount = this.yCounts[label];
                 const uniqueFeatureValues = Object.keys(this.featureCounts[featureIdx]).length;
 
                 for (const [value, count] of Object.entries(featureCount)) {
-                     const numerator = count + this.alpha;
-                    const denominator = totalLabelCount + uniqueFeatureValues * this.alpha;
-                    this.logConditionalProbs[label][featureIdx][value] = Math.log(numerator / denominator);
+                     const znamenatel = count + this.alpha;
+                    const chislitel = totalLabelCount + uniqueFeatureValues * this.alpha;
+                    this.logConditionalProbs[label][featureIdx][value] = Math.log(znamenatel / chislitel);
                 }
             }
         }
@@ -61,7 +65,7 @@ const NBCDiscrete = {
 
     getRelativeProbs(X) {
         return X.map(sample => {
-            return this.labels.map(label => {
+            return this.unLabels.map(label => {
                 let logProb = this.logPriorProbs[label];
                 for (let index = 0; index < sample.length; index++) {
                     const value = sample[index];
@@ -78,7 +82,7 @@ const NBCDiscrete = {
         const probs = this.getRelativeProbs(X);
         return probs.map(probArr => {
             const maxIndex = probArr.indexOf(Math.max(...probArr));
-            return this.labels[maxIndex];
+            return this.unLabels[maxIndex];
         });
     },
 
@@ -96,8 +100,8 @@ const NBCDiscrete = {
 
 const NBCDiscreteSafe = {
     alpha: 1,
-    labels: [],
-    labelCounts: {},
+    unLabels: [],
+    yCounts: {},
     featureCounts: [],
     classFeatureCounts: {},
     logPriorProbs: {},
@@ -108,21 +112,22 @@ const NBCDiscreteSafe = {
     },
 
     fit(X, y) {
-         this.labels = [...new Set(y)];
+        this.unLabels = [...new Set(y)];
         const totalSamples = y.length;
-        this.labelCounts = {};
+        this.yCounts = {};
         this.featureCounts = Array(X[0].length).fill(null).map(() => ({}));
         this.classFeatureCounts = {};
 
-        for (const label of this.labels) {
-            this.labelCounts[label] = 0;
+        // P(c)
+        for (const label of this.unLabels) {
+            this.yCounts[label] = 0;
             this.classFeatureCounts[label] = Array(X[0].length).fill(null).map(() => ({}));
         }
 
         for (let i = 0; i < X.length; i++) {
             const xi = X[i];
             const yi = y[i];
-            this.labelCounts[yi]++;
+            this.yCounts[yi]++;
             for (let index = 0; index < xi.length; index++) {
                 const value = xi[index];
                 this.classFeatureCounts[yi][index][value] = (this.classFeatureCounts[yi][index][value] || 0) + 1;
@@ -131,32 +136,34 @@ const NBCDiscreteSafe = {
         }
 
         this.logPriorProbs = {};
-        for (const label of this.labels) {
-             this.logPriorProbs[label] = Math.log(this.labelCounts[label] / totalSamples);
+        for (const label of this.unLabels) {
+            this.logPriorProbs[label] = Math.log(this.yCounts[label] / totalSamples);
         }
 
         this.logConditionalProbs = {};
-        for (const label of this.labels) {
+        // P(x|c)
+        for (const label of this.unLabels) {
             this.logConditionalProbs[label] = Array(X[0].length).fill(null).map(() => ({}));
             for (let featureIdx = 0; featureIdx < this.classFeatureCounts[label].length; featureIdx++) {
-                 const featureCount = this.classFeatureCounts[label][featureIdx];
-                const totalLabelCount = this.labelCounts[label];
+                const featureCount = this.classFeatureCounts[label][featureIdx];
+                const totalLabelCount = this.yCounts[label];
                 const uniqueFeatureValues = Object.keys(this.featureCounts[featureIdx]).length;
 
                 for (const [value, count] of Object.entries(featureCount)) {
-                    const numerator = count + this.alpha;
-                    const denominator = totalLabelCount + uniqueFeatureValues * this.alpha;
-                    this.logConditionalProbs[label][featureIdx][value] = Math.log(numerator / denominator);
+                    const znamenatel = count + this.alpha;
+                    const chislitel = totalLabelCount + uniqueFeatureValues * this.alpha;
+                    this.logConditionalProbs[label][featureIdx][value] = Math.log(znamenatel / chislitel);
 
                 }
                  //if a value is missing during fit
-                    for (const value in this.featureCounts[featureIdx]) {
-                        if (this.logConditionalProbs[label][featureIdx][value] === undefined) {
-                             const numerator = this.alpha;
-                             const denominator = totalLabelCount + uniqueFeatureValues * this.alpha;
-                             this.logConditionalProbs[label][featureIdx][value] = Math.log(numerator / denominator);
-
-                         }
+                for (const value in this.featureCounts[featureIdx]) {
+                    const conditionalProbIsCalculated =  this.logConditionalProbs[label][featureIdx][value] === undefined;
+                    if (conditionalProbIsCalculated) { // if it is not calc - it meams that we face wit it for the 1st time
+                        const znamenatel = this.alpha;
+                        const chislitel = totalLabelCount + uniqueFeatureValues * this.alpha;
+                        // P(x|c) = (count + alpha) / (totalLabelCount + uniqueFeatureValues * alpha)
+                        this.logConditionalProbs[label][featureIdx][value] = Math.log(znamenatel / chislitel);
+                    }
                 }
              }
          }
@@ -164,11 +171,12 @@ const NBCDiscreteSafe = {
     
       getRelativeProbs(X) {
         return X.map(sample => {
-            return this.labels.map(label => {
+            return this.unLabels.map(label => {
                 let logProb = this.logPriorProbs[label];
                 for (let index = 0; index < sample.length; index++) {
                     const value = sample[index];
-                   if (this.logConditionalProbs[label][index][value] !== undefined) {
+                    const isObjectWhereWeStoreLogs = this.logConditionalProbs[label][index][value] !== undefined;
+                   if (isObjectWhereWeStoreLogs) {
                        logProb += this.logConditionalProbs[label][index][value];
                    }
                 }
@@ -181,7 +189,7 @@ const NBCDiscreteSafe = {
         const probs = this.getRelativeProbs(X);
         return probs.map(probArr => {
             const maxIndex = probArr.indexOf(Math.max(...probArr));
-            return this.labels[maxIndex];
+            return this.unLabels[maxIndex];
         });
     },
 
@@ -254,8 +262,6 @@ function duplicate_features(X, multiplier) {
     return duplicatedX;
 }
 
-
-// Read and test the model
 (async function main() {
     const rawData = await readFile('wine.data', 'utf-8');
     const dataLines = rawData.trim().split('\n');
@@ -268,8 +274,8 @@ function duplicate_features(X, multiplier) {
     const multipliers = [1, 10, 100];
 
     for (const multiplier of multipliers) {
-         const duplicated_X = duplicate_features(X, multiplier);
-            console.log(`\nFeatures Multiplier: ${multiplier}`);
+        const duplicated_X = duplicate_features(X, multiplier);
+        console.log(`\nFeatures Multiplier: ${multiplier}`);
         console.log("# Bez poprawki Laplace'a");
     const noLaFlameResults = [];
     for (const bins of bins_arr) {
