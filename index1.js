@@ -204,7 +204,6 @@ const NBCDiscreteSafe = {
     }
 };
 
-// Function to calculate accuracy
 function get_accuracy(y_expected, y_actual) {
     let hits = 0;
     for (let i = 0; i < y_expected.length; i++) {
@@ -213,8 +212,6 @@ function get_accuracy(y_expected, y_actual) {
     return 100.0 * hits / y_actual.length;
 }
 
-
-// Function to discretize data
 function discretize_data(data, n_bins = 8) {
     const n_features = data[0].length;
     const discretized_data = data.map(row => row.slice());
@@ -243,11 +240,11 @@ function train_test_split(X, y, test_size = 0.3, random_state = 42) {
     const testCount = Math.floor(test_size * data.length);
     const testData = shuffledData.slice(0, testCount);
     const trainData = shuffledData.slice(testCount);
-    const X_train = trainData.map((obj) => obj.X);
-    const y_train = trainData.map((obj) => obj.y);
-    const X_test = testData.map((obj) => obj.X);
-    const y_test = testData.map((obj) => obj.y);
-    return { X_train, X_test, y_train, y_test };
+    const Xtrain = trainData.map((obj) => obj.X);
+    const Ytrain = trainData.map((obj) => obj.y);
+    const Xtest = testData.map((obj) => obj.X);
+    const Ytest = testData.map((obj) => obj.y);
+    return { Xtrain, Xtest, Ytrain, Ytest };
 }
 
 function duplicate_features(X, multiplier) {
@@ -270,22 +267,22 @@ function duplicate_features(X, multiplier) {
     const X = data.map(row => row.slice(1));
     const y = data.map(row => row[0]);
 
-    const bins_arr = [3, 5, 7, 10, 20];
+    const binsArray = [3, 5, 7, 10, 20, 100];
     const multipliers = [1, 10, 100];
 
     for (const multiplier of multipliers) {
         const duplicated_X = duplicate_features(X, multiplier);
-        console.log(`\nFeatures Multiplier: ${multiplier}`);
-        console.log("# Bez poprawki Laplace'a");
+        console.log(`Features Multiplier: ${multiplier}`);
+        console.log("Bez poprawki Laplace");
     const noLaFlameResults = [];
-    for (const bins of bins_arr) {
+    for (const bins of binsArray) {
         const discrete_X = discretize_data(duplicated_X, bins);
-        const { X_train, X_test, y_train, y_test } = train_test_split(discrete_X, y, 0.3, 736412);
+        const {Xtrain, Xtest, Ytrain, Ytest} = train_test_split(discrete_X, y, 0.3, 736412);
 
         NBCDiscrete.setAlpha(0);
-        NBCDiscrete.fit(X_train, y_train);
-        const y_pred = NBCDiscrete.predict(X_test);
-        const accuracy = get_accuracy(y_test, y_pred);
+        NBCDiscrete.fit(Xtrain, Ytrain);
+        const Ypred = NBCDiscrete.predict(Xtest);
+        const accuracy = get_accuracy(Ytest, Ypred);
         noLaFlameResults.push({
             Bins: bins,
             NBCDiscrete: `${accuracy.toFixed(16)}%`
@@ -294,16 +291,16 @@ function duplicate_features(X, multiplier) {
 
     console.table(noLaFlameResults);
 
-    console.log("\n# Z poprawką Laplace'a");
+    console.log("Z poprawką Laplac");
     const laplaceResults = [];
-      for (const bins of bins_arr) {
+      for (const bins of binsArray) {
         const discrete_X = discretize_data(duplicated_X, bins);
-         const { X_train, X_test, y_train, y_test } = train_test_split(discrete_X, y, 0.3, 736412);
+         const { Xtrain, Xtest, Ytrain, Ytest } = train_test_split(discrete_X, y, 0.3, 736412);
 
         NBCDiscreteSafe.setAlpha(1);
-        NBCDiscreteSafe.fit(X_train, y_train);
-        const y_pred = NBCDiscreteSafe.predict(X_test);
-         const accuracy = get_accuracy(y_test, y_pred);
+        NBCDiscreteSafe.fit(Xtrain, Ytrain);
+        const Ypred = NBCDiscreteSafe.predict(Xtest);
+         const accuracy = get_accuracy(Ytest, Ypred);
          laplaceResults.push({
             Bins: bins,
             NBCDiscrete: `${accuracy.toFixed(16)}%`
